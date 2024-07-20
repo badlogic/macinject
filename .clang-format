@@ -1,0 +1,7 @@
+# Minimal clang-format configuration
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: ForIndentation
+BreakBeforeBraces: Attach
+ColumnLimit: 120
