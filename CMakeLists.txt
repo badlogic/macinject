@@ -25,5 +25,5 @@ add_custom_command(TARGET macinject POST_BUILD
 
 file(GLOB_RECURSE TEST_SOURCES "test/*.cpp")
 add_executable(test ${TEST_SOURCES})
-set_target_properties(test PROPERTIES COMPILE_FLAGS "-O0 -g")
+set_target_properties(test PROPERTIES COMPILE_FLAGS "-O0 -g -fpatchable-function-entry=4,0")
 

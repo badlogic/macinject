@@ -103,58 +103,60 @@ bool trampoline(RemoteProcess &proc, void *oldFunction, void *newFunction) {
         return false;
     }
 
-    vm_prot_t oldProtection;
     size_t jumpInstructionSize;
 
     if (strcmp(archInfo->name, "x86_64") == 0) {
-        int64_t offset = (int64_t)newFunction - ((int64_t)oldFunction + 5);
-        if (offset >= INT32_MIN && offset <= INT32_MAX) {
-            unsigned char jumpInstruction[5];
-            jumpInstruction[0] = 0xE9; // JMP rel32
-            *(int32_t *)(jumpInstruction + 1) = (int32_t)offset;
+        unsigned char jumpInstruction[14];
+        jumpInstruction[0] = 0xFF; // JMP opcode for x86_64
+        jumpInstruction[1] = 0x25; // ModR/M byte for absolute indirect jump
+        *(uint32_t*)(jumpInstruction + 2) = 0; // 32-bit offset (unused)
+        *(uint64_t*)(jumpInstruction + 6) = (uint64_t)newFunction; // 64-bit address
 
-            jumpInstructionSize = sizeof(jumpInstruction);
+        jumpInstructionSize = sizeof(jumpInstruction);
 
-            if (!changeProtection(proc, oldFunction, jumpInstructionSize, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY)) {
-                return false;
-            }
+        if (!changeProtection(proc, oldFunction, jumpInstructionSize, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY)) {
+            fprintf(stderr, "Failed to change memory protection to RWX\n");
+            return false;
+        }
 
-            if (!writeBytes(proc, oldFunction, jumpInstruction, jumpInstructionSize)) {
-                return false;
-            }
+        if (!writeBytes(proc, oldFunction, jumpInstruction, jumpInstructionSize)) {
+            fprintf(stderr, "Failed to write jump instruction\n");
+            return false;
+        }
 
-            if (!changeProtection(proc, oldFunction, jumpInstructionSize, VM_PROT_READ | VM_PROT_EXECUTE)) {
-                return false;
-            }
-        } else {
-            fprintf(stderr, "Offset too large for short jump: %lld\n", offset);
+        if (!changeProtection(proc, oldFunction, jumpInstructionSize, VM_PROT_READ | VM_PROT_EXECUTE)) {
+            fprintf(stderr, "Failed to change memory protection to RX\n");
             return false;
         }
     } else if (strcmp(archInfo->name, "arm64") == 0 || strcmp(archInfo->name, "arm64e") == 0) {
-        int64_t offset = (int64_t)newFunction - (int64_t)oldFunction;
-        if (offset >= INT32_MIN && offset <= INT32_MAX) {
-            int32_t b_offset = offset / 4;
-            unsigned char jumpInstruction[4];
-            jumpInstruction[0] = (b_offset & 0xFF);
-            jumpInstruction[1] = (b_offset >> 8) & 0xFF;
-            jumpInstruction[2] = (b_offset >> 16) & 0xFF;
-            jumpInstruction[3] = 0x14 | ((b_offset >> 24) & 0x3);
+        unsigned char jumpInstruction[16];
+        // LDR X16, #8
+        jumpInstruction[0] = 0x50;
+        jumpInstruction[1] = 0x00;
+        jumpInstruction[2] = 0x00;
+        jumpInstruction[3] = 0x58;
+        // BR X16
+        jumpInstruction[4] = 0x00;
+        jumpInstruction[5] = 0x02;
+        jumpInstruction[6] = 0x1F;
+        jumpInstruction[7] = 0xD6;
+        // Address to jump to
+        *(uint64_t*)(jumpInstruction + 8) = (uint64_t)newFunction;
 
-            jumpInstructionSize = sizeof(jumpInstruction);
+        jumpInstructionSize = sizeof(jumpInstruction);
 
-            if (!changeProtection(proc, oldFunction, jumpInstructionSize, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY)) {
-                return false;
-            }
+        if (!changeProtection(proc, oldFunction, jumpInstructionSize, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY)) {
+            fprintf(stderr, "Failed to change memory protection to RWX\n");
+            return false;
+        }
 
-            if (!writeBytes(proc, oldFunction, jumpInstruction, jumpInstructionSize)) {
-                return false;
-            }
+        if (!writeBytes(proc, oldFunction, jumpInstruction, jumpInstructionSize)) {
+            fprintf(stderr, "Failed to write jump instruction\n");
+            return false;
+        }
 
-            if (!changeProtection(proc, oldFunction, jumpInstructionSize, VM_PROT_READ | VM_PROT_EXECUTE)) {
-                return false;
-            }
-        } else {
-            fprintf(stderr, "Offset too large for short jump: %lld\n", offset);
+        if (!changeProtection(proc, oldFunction, jumpInstructionSize, VM_PROT_READ | VM_PROT_EXECUTE)) {
+            fprintf(stderr, "Failed to change memory protection to RX\n");
             return false;
         }
     } else {
