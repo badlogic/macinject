@@ -6,9 +6,9 @@
 
 struct RemoteProcess {
 	pid_t pid;
-	mach_port_t task;
 	void *fooAddr;
 	void *dataAddr;
+    mach_port_t task;
 };
 
 bool attach(RemoteProcess &proc) {
@@ -87,13 +87,13 @@ bool allocate(RemoteProcess &proc, size_t size, void **remoteAddress) {
 	return true;
 }
 
-bool changeProtection(RemoteProcess &proc, void *address, size_t size, vm_prot_t newProtection) {
-	kern_return_t kr = vm_protect(proc.task, (vm_address_t)address, size, false, newProtection);
+bool changeProtection(RemoteProcess &proc, void *address, size_t numBytes, vm_prot_t newProtection) {
+	kern_return_t kr = vm_protect(proc.task, (vm_address_t)address, numBytes, false, newProtection);
 	if (kr != KERN_SUCCESS) {
 		fprintf(stderr, "Failed to change memory protection: %s\n", mach_error_string(kr));
 		return false;
 	}
-	printf("Changed projection of address %p, size %zu to %d\n", address, size, newProtection);
+	printf("Changed projection of address %p, size %zu to %d\n", address, numBytes, newProtection);
 	return true;
 }
 
